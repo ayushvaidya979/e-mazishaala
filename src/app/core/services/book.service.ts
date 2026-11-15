@@ -1,11 +1,12 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
 import { Book } from '../../models/book.model';
 import { SupabaseService } from './supabase.service';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 @Injectable({
   providedIn: 'root'
 })
-export class BookService {
+export class BookService implements OnDestroy {
   private readonly booksData: Book[] = [
     {
       id: 'bk-std10-ganit-prakash',
@@ -201,35 +202,77 @@ export class BookService {
 
   private booksSignal = signal<Book[]>(this.booksData);
   private selectedStandardSignal = signal<number | null>(null);
+  private isLoadingSignal = signal<boolean>(false);
+  private errorSignal = signal<string | null>(null);
+  private realtimeChannel: RealtimeChannel | null = null;
 
   readonly books = this.booksSignal.asReadonly();
   readonly selectedStandard = this.selectedStandardSignal.asReadonly();
+  readonly isLoading = this.isLoadingSignal.asReadonly();
+  readonly error = this.errorSignal.asReadonly();
 
   constructor() {
     this.loadBooksFromSupabase();
     this.initRealtimeSubscription();
   }
 
+  ngOnDestroy() {
+    this.cleanupRealtime();
+  }
+
+  private cleanupRealtime() {
+    if (this.realtimeChannel) {
+      try {
+        this.supabase.removeChannel(this.realtimeChannel);
+      } catch (err) {
+        console.warn('Error removing books realtime channel:', err);
+      }
+      this.realtimeChannel = null;
+    }
+  }
+
   private initRealtimeSubscription() {
+    this.cleanupRealtime();
     try {
-      this.supabase
-        .channel('user-books-sync')
+      this.realtimeChannel = this.supabase
+        .channel('student-books-sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
           this.loadBooksFromSupabase();
         })
         .subscribe();
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to subscribe to books changes:', err);
+    }
   }
 
   private async loadBooksFromSupabase() {
+    this.isLoadingSignal.set(true);
     try {
       const { data: dbBooks, error } = await this.supabase
         .from('books')
-        .select('*');
+        .select('*')
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: false });
 
-      if (!error && dbBooks && dbBooks.length > 0) {
-        const mapped: Book[] = dbBooks.map(db => {
-          const existing = this.booksData.find(b => b.id === db.id);
+      if (error) {
+        console.warn('Supabase books query returned error:', error);
+        this.errorSignal.set(error.message);
+        this.isLoadingSignal.set(false);
+        return;
+      }
+
+      this.errorSignal.set(null);
+
+      if (dbBooks && dbBooks.length > 0) {
+        // Filter for active & published books
+        const activePublished = dbBooks.filter(db => {
+          const isPublished = db.is_published === true || db.publication_status === 'published';
+          const isActive = db.is_active !== false;
+          return isPublished && isActive;
+        });
+
+        const mapped: Book[] = activePublished.map(db => {
+          const existing = this.booksData.find(b => b.id === db.id || b.title?.trim().toLowerCase() === db.title?.trim().toLowerCase());
           return {
             id: db.id,
             title: db.title,
@@ -249,20 +292,32 @@ export class BookService {
             description: db.description || db.full_description || existing?.description || '',
             tableOfContents: (db.table_of_contents as string[]) || existing?.tableOfContents || [],
             highlights: (db.highlights as string[]) || existing?.highlights || [],
-            isBestseller: db.is_bestseller ?? db.is_featured ?? false
+            isBestseller: db.is_bestseller ?? db.is_featured ?? false,
+            displayOrder: db.display_order ?? 0,
+            display_order: db.display_order ?? 0,
+            is_published: db.is_published ?? true,
+            is_active: db.is_active ?? true
           };
         });
 
-        const merged = [...mapped];
+        // Merge with local baseline booksData so initial books are never lost
+        const merged: Book[] = [...mapped];
         for (const local of this.booksData) {
-          if (!merged.find(m => m.id === local.id)) {
+          const alreadyExists = merged.some(m =>
+            m.id === local.id || m.title?.trim().toLowerCase() === local.title?.trim().toLowerCase()
+          );
+          if (!alreadyExists) {
             merged.push(local);
           }
         }
+
         this.booksSignal.set(merged);
       }
-    } catch {
-      // Offline fallback
+    } catch (err: any) {
+      console.warn('Offline fallback for books:', err);
+      this.errorSignal.set(err?.message || 'Failed to load books');
+    } finally {
+      this.isLoadingSignal.set(false);
     }
   }
 

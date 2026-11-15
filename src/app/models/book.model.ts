@@ -18,5 +18,9 @@ export interface Book {
   tableOfContents: string[];
   highlights: string[];
   isBestseller?: boolean;
+  displayOrder?: number;
+  display_order?: number;
+  is_published?: boolean;
+  is_active?: boolean;
 }
 
