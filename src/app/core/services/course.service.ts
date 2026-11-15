@@ -418,15 +418,35 @@ export class CourseService {
 
   constructor() {
     this.loadCoursesFromSupabase();
+    this.initRealtimeSubscription();
+  }
+
+  private initRealtimeSubscription() {
+    try {
+      this.supabase
+        .channel('user-batches-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'batches' }, () => {
+          this.loadCoursesFromSupabase();
+        })
+        .subscribe();
+    } catch {}
   }
 
   private async loadCoursesFromSupabase() {
     try {
-      const { data: dbCourses, error } = await this.supabase
+      // 1. Fetch courses
+      const { data: dbCourses } = await this.supabase
         .from('courses')
         .select('*');
 
-      if (!error && dbCourses && dbCourses.length > 0) {
+      // 2. Fetch academic batches managed in Admin Portal
+      const { data: dbBatches } = await this.supabase
+        .from('batches')
+        .select('*');
+
+      let combined: Course[] = [];
+
+      if (dbCourses && dbCourses.length > 0) {
         const mapped: Course[] = dbCourses.map(db => {
           const existing = this.coursesData.find(c => c.id === db.id);
           return {
@@ -463,8 +483,61 @@ export class CourseService {
             curriculum: existing?.curriculum || []
           };
         });
+        combined = [...mapped];
+      }
 
-        const merged = [...mapped];
+      if (dbBatches && dbBatches.length > 0) {
+        const batchMapped: Course[] = dbBatches.map(b => {
+          const existing = this.coursesData.find(c => c.id === b.id);
+          return {
+            id: b.id,
+            title: b.name,
+            subtitle: b.course_name,
+            description: b.description || b.name,
+            standard: 10,
+            subject: b.course_name || 'General',
+            thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
+            instructor: {
+              id: 'inst-' + b.id,
+              name: 'Prof. Rahul Deshmukh & Faculty',
+              title: 'Senior Educator',
+              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+              rating: 4.9,
+              studentsCount: b.total_seats || 100,
+              experienceYears: 12,
+              bio: 'Senior Faculty at e-MaziShaala'
+            },
+            startDate: `Starts ${b.start_date}`,
+            price: Number(b.price) || 999,
+            discountedPrice: Number(b.price) || 999,
+            rating: 4.9,
+            reviewCount: 120,
+            lessonsCount: 60,
+            duration: '80 Hours',
+            language: 'Marathi & English',
+            isPopular: b.is_featured ?? false,
+            isUpcoming: b.status === 'Upcoming' || b.status === 'Registration Open',
+            isEnrolled: false,
+            progressPercent: 0,
+            features: [
+              `Total Capacity: ${b.total_seats} seats (${b.available_seats} remaining)`,
+              `Status: ${b.status}`,
+              `Schedule: ${b.start_date} to ${b.end_date}`,
+              'Live Doubt Clearing & Test Series'
+            ],
+            curriculum: existing?.curriculum || []
+          };
+        });
+
+        for (const bm of batchMapped) {
+          if (!combined.find(c => c.id === bm.id)) {
+            combined.push(bm);
+          }
+        }
+      }
+
+      if (combined.length > 0) {
+        const merged = [...combined];
         for (const local of this.coursesData) {
           if (!merged.find(m => m.id === local.id)) {
             merged.push(local);

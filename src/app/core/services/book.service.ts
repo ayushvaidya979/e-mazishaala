@@ -207,6 +207,18 @@ export class BookService {
 
   constructor() {
     this.loadBooksFromSupabase();
+    this.initRealtimeSubscription();
+  }
+
+  private initRealtimeSubscription() {
+    try {
+      this.supabase
+        .channel('user-books-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, () => {
+          this.loadBooksFromSupabase();
+        })
+        .subscribe();
+    } catch {}
   }
 
   private async loadBooksFromSupabase() {
@@ -222,22 +234,22 @@ export class BookService {
             id: db.id,
             title: db.title,
             subtitle: db.subtitle || existing?.subtitle || '',
-            standard: db.standard,
-            subject: db.subject,
+            standard: db.standard || 10,
+            subject: db.subject || db.category || 'General',
             author: db.author,
             publisher: db.publisher || 'e-MaziShaala Publications',
-            coverImage: db.cover_image || existing?.coverImage || '',
+            coverImage: db.cover_image || db.cover_image_url || existing?.coverImage || '',
             price: Number(db.price) || 0,
             originalPrice: Number(db.original_price) || 0,
-            publicationStatus: db.publication_status as 'published' | 'coming_soon',
+            publicationStatus: (db.publication_status || (db.is_published ? 'published' : 'coming_soon')) as 'published' | 'coming_soon',
             releaseDate: db.release_date || existing?.releaseDate,
             pages: db.pages || 100,
             edition: db.edition || '2025 Revised Edition',
             isbn: db.isbn || existing?.isbn || '',
-            description: db.description || existing?.description || '',
+            description: db.description || db.full_description || existing?.description || '',
             tableOfContents: (db.table_of_contents as string[]) || existing?.tableOfContents || [],
             highlights: (db.highlights as string[]) || existing?.highlights || [],
-            isBestseller: db.is_bestseller
+            isBestseller: db.is_bestseller ?? db.is_featured ?? false
           };
         });
 
