@@ -84,37 +84,56 @@ function passwordMatchValidator(control: AbstractControl): { [key: string]: bool
           <form [formGroup]="signupForm" (ngSubmit)="onSubmit()" class="space-y-3">
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Full Name
+                Full Name <span class="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 formControlName="fullName"
                 placeholder="Student Name"
-                class="w-full px-3 py-2 rounded-xl border text-xs text-slate-900 bg-slate-50/50 outline-none" />
+                [class.border-rose-400]="isFieldInvalid('fullName')"
+                [class.bg-rose-50]="isFieldInvalid('fullName')"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-slate-50/50 outline-none transition-colors" />
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Phone Number
+                Email Address <span class="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="email"
+                formControlName="email"
+                placeholder="student@example.com"
+                [class.border-rose-400]="isFieldInvalid('email')"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-slate-50/50 outline-none transition-colors" />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Phone Number <span class="text-rose-500">*</span>
               </label>
               <input
                 type="tel"
                 formControlName="phoneNumber"
-                placeholder="10-digit mobile"
+                (input)="onPhoneInput($event)"
+                placeholder="10-digit mobile number"
                 maxlength="10"
-                class="w-full px-3 py-2 rounded-xl border text-xs text-slate-900 bg-slate-50/50 outline-none" />
+                [class.border-rose-400]="isFieldInvalid('phoneNumber')"
+                [class.bg-rose-50]="isFieldInvalid('phoneNumber')"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-slate-50/50 outline-none transition-colors" />
             </div>
 
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Password
+                Password <span class="text-rose-500">*</span>
               </label>
               <div class="relative">
                 <input
                   [type]="showPassword() ? 'text' : 'password'"
                   formControlName="password"
                   placeholder="Min 6 characters"
-                  class="w-full pl-3 pr-8 py-2 rounded-xl border text-xs text-slate-900 bg-slate-50/50 outline-none" />
+                  [class.border-rose-400]="isFieldInvalid('password')"
+                  [class.bg-rose-50]="isFieldInvalid('password')"
+                  class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-slate-50/50 outline-none transition-colors" />
                 <button
                   type="button"
                   (click)="showPassword.set(!showPassword())"
@@ -126,20 +145,26 @@ function passwordMatchValidator(control: AbstractControl): { [key: string]: bool
 
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Confirm Password
+                Confirm Password <span class="text-rose-500">*</span>
               </label>
               <input
                 [type]="showPassword() ? 'text' : 'password'"
                 formControlName="confirmPassword"
                 placeholder="Re-enter password"
-                class="w-full px-3 py-2 rounded-xl border text-xs text-slate-900 bg-slate-50/50 outline-none" />
+                [class.border-rose-400]="isFieldInvalid('confirmPassword') || (submitted && signupForm.hasError('passwordMismatch'))"
+                [class.bg-rose-50]="isFieldInvalid('confirmPassword') || (submitted && signupForm.hasError('passwordMismatch'))"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-slate-50/50 outline-none transition-colors" />
             </div>
 
             <button
               type="submit"
               [disabled]="isLoading()"
-              class="w-full btn-primary !py-2.5 !rounded-xl text-xs font-bold shadow-xs">
-              <span>Create Account</span>
+              class="w-full btn-primary !py-2.5 !rounded-xl text-xs font-bold shadow-xs active:scale-98 transition-all">
+              @if (isLoading()) {
+                <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mx-auto"></div>
+              } @else {
+                <span>Create Account</span>
+              }
             </button>
           </form>
 
@@ -165,28 +190,62 @@ export class SignupComponent {
   submitted = false;
 
   signupForm: FormGroup = this.fb.group({
-    fullName: ['', [Validators.required, Validators.minLength(3)]],
+    fullName: ['', [Validators.required, Validators.minLength(2)]],
+    email: ['', [Validators.email]],
     phoneNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{10}$/)]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
 
+  isFieldInvalid(fieldName: string): boolean {
+    const control = this.signupForm.get(fieldName);
+    return !!(control && control.invalid && (control.touched || this.submitted));
+  }
+
+  onPhoneInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input) {
+      const sanitized = input.value.replace(/\D/g, '').slice(0, 10);
+      this.signupForm.get('phoneNumber')?.setValue(sanitized, { emitEvent: false });
+    }
+  }
+
   async onSubmit() {
     this.submitted = true;
     this.errorMessage.set('');
 
-    if (this.signupForm.invalid) return;
+    // Normalize phone number
+    const rawPhone = this.signupForm.get('phoneNumber')?.value || '';
+    const cleanPhone = rawPhone.replace(/\D/g, '').slice(-10);
+    this.signupForm.get('phoneNumber')?.setValue(cleanPhone, { emitEvent: false });
+
+    if (this.signupForm.invalid) {
+      if (this.signupForm.hasError('passwordMismatch')) {
+        this.errorMessage.set('Passwords do not match. Please re-enter matching passwords.');
+      } else if (this.signupForm.get('fullName')?.invalid) {
+        this.errorMessage.set('Please enter your full name (at least 2 characters).');
+      } else if (this.signupForm.get('phoneNumber')?.invalid) {
+        this.errorMessage.set('Please enter a valid 10-digit mobile number.');
+      } else if (this.signupForm.get('password')?.invalid) {
+        this.errorMessage.set('Password must be at least 6 characters long.');
+      } else if (this.signupForm.get('email')?.invalid) {
+        this.errorMessage.set('Please enter a valid email format.');
+      } else {
+        this.errorMessage.set('Please fill in all required fields correctly.');
+      }
+      return;
+    }
 
     this.isLoading.set(true);
-    const { fullName, phoneNumber, password } = this.signupForm.value;
-    const result = await this.authService.signup(fullName, phoneNumber, password);
+    const { fullName, phoneNumber, password, email } = this.signupForm.value;
+    const result = await this.authService.signup(fullName, phoneNumber, password, email);
     this.isLoading.set(false);
 
     if (result.success) {
-      this.toastService.success('Account created!');
+      this.toastService.success(`Welcome to e-MaziShaala, ${fullName.trim()}!`);
       this.router.navigate(['/home']);
     } else {
-      this.errorMessage.set(result.error || 'Registration failed.');
+      this.errorMessage.set(result.error || 'Registration failed. Please check your details and try again.');
     }
   }
 

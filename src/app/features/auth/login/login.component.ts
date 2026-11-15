@@ -77,16 +77,16 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-3">
             <div>
               <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Email Address
+                Email or Mobile Number
               </label>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <app-icon name="mail" [size]="15"></app-icon>
+                  <app-icon name="user" [size]="15"></app-icon>
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   formControlName="email"
-                  placeholder="student@example.com"
+                  placeholder="student@example.com or 10-digit mobile"
                   class="w-full pl-9 pr-3 py-2 rounded-xl border text-xs text-slate-900 bg-slate-50/50 placeholder-slate-400 outline-none" />
               </div>
             </div>
@@ -172,7 +172,7 @@ export class LoginComponent {
   submitted = false;
 
   loginForm: FormGroup = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required]],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
 
@@ -180,7 +180,14 @@ export class LoginComponent {
     this.submitted = true;
     this.errorMessage.set('');
 
-    if (this.loginForm.invalid) return;
+    if (this.loginForm.invalid) {
+      if (this.loginForm.get('email')?.invalid) {
+        this.errorMessage.set('Please enter your email address or 10-digit mobile number.');
+      } else if (this.loginForm.get('password')?.invalid) {
+        this.errorMessage.set('Password must be at least 6 characters long.');
+      }
+      return;
+    }
 
     this.isLoading.set(true);
     const { email, password } = this.loginForm.value;

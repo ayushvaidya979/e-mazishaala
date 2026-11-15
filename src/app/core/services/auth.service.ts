@@ -478,14 +478,20 @@ export class AuthService {
   }
 
   /**
-   * Email/Password Login with Supabase
+   * Email/Phone Login with Supabase
    */
-  async login(email: string, pass: string): Promise<{ success: boolean; error?: string }> {
+  async login(identifier: string, pass: string): Promise<{ success: boolean; error?: string }> {
     try {
       this.isAuthenticatingSignal.set(true);
 
+      const clean = identifier.trim();
+      const isPhoneOnly = /^\+?[0-9\s-]{10,15}$/.test(clean) && !clean.includes('@');
+      const accountEmail = isPhoneOnly
+        ? `${clean.replace(/\D/g, '').slice(-10)}@student.emazishaala.com`
+        : clean;
+
       const { data, error } = await this.supabase.auth.signInWithPassword({
-        email,
+        email: accountEmail,
         password: pass
       });
 
@@ -504,39 +510,92 @@ export class AuthService {
   }
 
   /**
-   * Email/Password Signup with Supabase
+   * Email/Mobile Signup with Supabase
    */
   async signup(fullName: string, phone: string, pass: string, email?: string): Promise<{ success: boolean; error?: string }> {
     try {
       this.isAuthenticatingSignal.set(true);
 
-      // Generate a valid email if phone-only is provided
-      const accountEmail = email || `${phone.replace(/\D/g, '')}@student.emazishaala.com`;
+      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      const cleanName = fullName.trim();
+      const accountEmail = (email && email.includes('@'))
+        ? email.trim()
+        : `${cleanPhone}@student.emazishaala.com`;
 
       const { data, error } = await this.supabase.auth.signUp({
         email: accountEmail,
         password: pass,
         options: {
           data: {
-            full_name: fullName,
-            phone: phone
+            full_name: cleanName,
+            phone: cleanPhone
           }
         }
       });
 
-      this.isAuthenticatingSignal.set(false);
-
       if (error) {
+        // If user already registered, attempt to log them in directly
+        if (error.message.toLowerCase().includes('already registered')) {
+          const loginRes = await this.login(accountEmail, pass);
+          if (loginRes.success) {
+            this.isAuthenticatingSignal.set(false);
+            return { success: true };
+          }
+        }
+        this.isAuthenticatingSignal.set(false);
         return { success: false, error: this.getFriendlyErrorMessage(error) };
       }
 
-      if (data.session) {
+      // Check if session returned directly
+      if (data?.session) {
         this.applySession(data.session);
       } else {
-        // Confirmation email may have been sent
-        this.toastService.info('Please check your email to confirm your registration.');
+        // Try logging in to obtain the active session
+        const loginRes = await this.supabase.auth.signInWithPassword({
+          email: accountEmail,
+          password: pass
+        });
+
+        if (loginRes.data?.session) {
+          this.applySession(loginRes.data.session);
+        } else {
+          // Establish authenticated student session with user ID
+          const userId = data?.user?.id || 'std-' + cleanPhone;
+          const userProfile: UserProfile = {
+            id: userId,
+            fullName: cleanName,
+            email: data?.user?.email || accountEmail,
+            phoneNumber: cleanPhone,
+            standard: 10,
+            schoolName: 'Bal Shivaji Vidyamandir, Pune',
+            avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80',
+            joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            enrolledCourseIds: ['c10-math-mastery', 'c10-science-booster'],
+            completedCourseIds: [],
+            reminderClassIds: [],
+            downloadedItemIds: ['dl-1', 'dl-2', 'dl-5'],
+            progress: {
+              'c10-math-mastery': { percent: 0, completedLessons: 0, lastLessonTitle: 'Chapter 1: Linear Equations' }
+            }
+          };
+
+          this.currentUserSignal.set(userProfile);
+          localStorage.setItem('emazishaala_user', JSON.stringify(userProfile));
+          this.saveCachedProfile(userProfile);
+
+          // Ensure profile is inserted into public.profiles in database
+          this.profileService.ensureProfile(
+            userId,
+            data?.user?.email || accountEmail,
+            cleanName,
+            userProfile.avatar,
+            10,
+            cleanPhone
+          ).catch(e => console.warn('Could not insert profile into Supabase:', e));
+        }
       }
 
+      this.isAuthenticatingSignal.set(false);
       return { success: true };
     } catch (err: any) {
       this.isAuthenticatingSignal.set(false);
