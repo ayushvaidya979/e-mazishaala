@@ -488,16 +488,27 @@ export class CourseService {
 
       if (dbBatches && dbBatches.length > 0) {
         const batchMapped: Course[] = dbBatches.map(b => {
-          const existing = this.coursesData.find(c => c.id === b.id);
+          const normBatchName = (b.name || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '');
+          const existing = this.coursesData.find(c =>
+            c.id === b.id ||
+            (c.title || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '') === normBatchName
+          );
+
+          const standard = Number(b.standard) || existing?.standard || 10;
+          const subject = b.course_name || b.subject || existing?.subject || 'Mathematics';
+          const isFeatured = b.is_featured === true;
+          const statusLower = (b.status || '').toLowerCase();
+          const isUpcoming = statusLower === 'upcoming' || statusLower === 'registration open' || statusLower === 'ongoing';
+
           return {
             id: b.id,
             title: b.name,
-            subtitle: b.course_name,
-            description: b.description || b.name,
-            standard: 10,
-            subject: b.course_name || 'General',
-            thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
-            instructor: {
+            subtitle: b.course_name || existing?.subtitle || '',
+            description: b.description || existing?.description || b.name,
+            standard,
+            subject,
+            thumbnail: b.thumbnail || existing?.thumbnail || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
+            instructor: existing?.instructor || {
               id: 'inst-' + b.id,
               name: 'Prof. Rahul Deshmukh & Faculty',
               title: 'Senior Educator',
@@ -507,22 +518,22 @@ export class CourseService {
               experienceYears: 12,
               bio: 'Senior Faculty at e-MaziShaala'
             },
-            startDate: `Starts ${b.start_date}`,
-            price: Number(b.price) || 999,
-            discountedPrice: Number(b.price) || 999,
-            rating: 4.9,
-            reviewCount: 120,
-            lessonsCount: 60,
-            duration: '80 Hours',
-            language: 'Marathi & English',
-            isPopular: b.is_featured ?? false,
-            isUpcoming: b.status === 'Upcoming' || b.status === 'Registration Open',
-            isEnrolled: false,
-            progressPercent: 0,
-            features: [
-              `Total Capacity: ${b.total_seats} seats (${b.available_seats} remaining)`,
-              `Status: ${b.status}`,
-              `Schedule: ${b.start_date} to ${b.end_date}`,
+            startDate: b.start_date ? `Starts ${b.start_date.split('T')[0]}` : (existing?.startDate || 'Starts Soon'),
+            price: Number(b.price) || existing?.price || 999,
+            discountedPrice: Number(b.discounted_price || b.price) || existing?.discountedPrice || 999,
+            rating: existing?.rating || 4.9,
+            reviewCount: existing?.reviewCount || 120,
+            lessonsCount: existing?.lessonsCount || 60,
+            duration: existing?.duration || '80 Hours',
+            language: existing?.language || 'Marathi & English',
+            isPopular: isFeatured,
+            isUpcoming: isUpcoming,
+            isEnrolled: existing?.isEnrolled || false,
+            progressPercent: existing?.progressPercent || 0,
+            features: (b.features as string[]) || existing?.features || [
+              `Total Capacity: ${b.total_seats || 100} seats (${b.available_seats ?? 80} remaining)`,
+              `Status: ${b.status || 'Registration Open'}`,
+              `Schedule: ${b.start_date ? b.start_date.split('T')[0] : ''} to ${b.end_date ? b.end_date.split('T')[0] : ''}`,
               'Live Doubt Clearing & Test Series'
             ],
             curriculum: existing?.curriculum || []
@@ -530,7 +541,14 @@ export class CourseService {
         });
 
         for (const bm of batchMapped) {
-          if (!combined.find(c => c.id === bm.id)) {
+          const normBmTitle = (bm.title || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '');
+          const existingIdx = combined.findIndex(c =>
+            c.id === bm.id ||
+            (c.title || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '') === normBmTitle
+          );
+          if (existingIdx >= 0) {
+            combined[existingIdx] = { ...combined[existingIdx], ...bm };
+          } else {
             combined.push(bm);
           }
         }
@@ -539,7 +557,12 @@ export class CourseService {
       if (combined.length > 0) {
         const merged = [...combined];
         for (const local of this.coursesData) {
-          if (!merged.find(m => m.id === local.id)) {
+          const normLocalTitle = (local.title || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '');
+          const alreadyExists = merged.some(m =>
+            m.id === local.id ||
+            (m.title || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '') === normLocalTitle
+          );
+          if (!alreadyExists) {
             merged.push(local);
           }
         }
