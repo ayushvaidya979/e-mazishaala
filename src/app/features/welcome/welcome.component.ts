@@ -96,29 +96,12 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
               <span>Sign Up Free</span>
             </a>
           </div>
-
-          <!-- Instant Student Demo Login CTA -->
-          <div class="pt-1">
-            <button
-              type="button"
-              (click)="onQuickAccess()"
-              class="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-sky-50 text-sky-700 font-extrabold text-xs border border-sky-200 shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95">
-              <span>Quick Student Login (Aarav, Std 10)</span>
-              <app-icon name="arrow-right" [size]="13" color="#0284c7"></app-icon>
-            </button>
-          </div>
         </div>
       </div>
     </div>
   `
 })
 export class WelcomeComponent {
-  private authService = inject(AuthService);
   private router = inject(Router);
-
-  onQuickAccess() {
-    this.authService.enterDemoMode(10);
-    this.router.navigate(['/home']);
-  }
 }
 

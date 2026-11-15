@@ -20,9 +20,6 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           </div>
           <div>
             <span class="text-xl font-black text-slate-900 tracking-tight">e-Mazi<span class="text-sky-600">Shaala</span></span>
-            <span class="brand-marathi text-xs font-bold text-amber-600 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 ml-1">
-              ई-माझीशाळा
-            </span>
           </div>
         </a>
 
@@ -132,18 +129,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             </button>
           </form>
 
-          <!-- Guest Demo Mode Button -->
-          <div class="pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              (click)="onEnterDemo()"
-              class="w-full py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 active:scale-95 transition-all">
-              <app-icon name="sparkles" [size]="13"></app-icon>
-              <span>Instant Guest Mode (Std 10)</span>
-            </button>
-          </div>
-
-          <div class="text-center text-[11px] text-slate-500 pt-1">
+          <div class="text-center text-[11px] text-slate-500 pt-2 border-t border-slate-100">
             Don't have an account?
             <a routerLink="/signup" class="font-bold text-sky-600 ml-1">Sign Up</a>
           </div>
