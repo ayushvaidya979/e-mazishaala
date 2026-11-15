@@ -1,10 +1,13 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { AppNotification } from '../../models/notification.model';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class NotificationService {
+  private supabaseService = inject(SupabaseService);
+  private readonly supabase = this.supabaseService.supabase;
   private readonly notificationsData: AppNotification[] = [
     {
       id: 'notif-1',
@@ -52,10 +55,61 @@ export class NotificationService {
     this.listSignal().filter(n => !n.isRead).length
   );
 
-  markAsRead(id: string) {
+  constructor() {
+    this.loadNotificationsFromSupabase();
+  }
+
+  private async loadNotificationsFromSupabase() {
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      let query = this.supabase.from('notifications').select('*');
+      if (userId) {
+        query = query.or(`user_id.is.null,user_id.eq.${userId}`);
+      } else {
+        query = query.is('user_id', null);
+      }
+
+      const { data: dbNotifs, error } = await query.order('created_at', { ascending: false });
+
+      if (!error && dbNotifs && dbNotifs.length > 0) {
+        const mapped: AppNotification[] = dbNotifs.map(db => ({
+          id: db.id,
+          title: db.title,
+          message: db.message,
+          type: db.type as any,
+          timestamp: new Date(db.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          isRead: db.is_read,
+          actionUrl: db.action_url || '/home'
+        }));
+
+        const merged = [...mapped];
+        for (const local of this.notificationsData) {
+          if (!merged.find(m => m.id === local.id)) {
+            merged.push(local);
+          }
+        }
+        this.listSignal.set(merged);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }
+
+  async markAsRead(id: string) {
     this.listSignal.update(list =>
       list.map(n => (n.id === id ? { ...n, isRead: true } : n))
     );
+
+    try {
+      await this.supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+    } catch (e) {
+      // Ignore offline errors
+    }
   }
 
   markAllAsRead() {

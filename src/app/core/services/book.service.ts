@@ -1,5 +1,6 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Book } from '../../models/book.model';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
@@ -195,11 +196,63 @@ export class BookService {
     }
   ];
 
+  private supabaseService = inject(SupabaseService);
+  private readonly supabase = this.supabaseService.supabase;
+
   private booksSignal = signal<Book[]>(this.booksData);
   private selectedStandardSignal = signal<number | null>(null);
 
   readonly books = this.booksSignal.asReadonly();
   readonly selectedStandard = this.selectedStandardSignal.asReadonly();
+
+  constructor() {
+    this.loadBooksFromSupabase();
+  }
+
+  private async loadBooksFromSupabase() {
+    try {
+      const { data: dbBooks, error } = await this.supabase
+        .from('books')
+        .select('*');
+
+      if (!error && dbBooks && dbBooks.length > 0) {
+        const mapped: Book[] = dbBooks.map(db => {
+          const existing = this.booksData.find(b => b.id === db.id);
+          return {
+            id: db.id,
+            title: db.title,
+            subtitle: db.subtitle || existing?.subtitle || '',
+            standard: db.standard,
+            subject: db.subject,
+            author: db.author,
+            publisher: db.publisher || 'e-MaziShaala Publications',
+            coverImage: db.cover_image || existing?.coverImage || '',
+            price: Number(db.price) || 0,
+            originalPrice: Number(db.original_price) || 0,
+            publicationStatus: db.publication_status as 'published' | 'coming_soon',
+            releaseDate: db.release_date || existing?.releaseDate,
+            pages: db.pages || 100,
+            edition: db.edition || '2025 Revised Edition',
+            isbn: db.isbn || existing?.isbn || '',
+            description: db.description || existing?.description || '',
+            tableOfContents: (db.table_of_contents as string[]) || existing?.tableOfContents || [],
+            highlights: (db.highlights as string[]) || existing?.highlights || [],
+            isBestseller: db.is_bestseller
+          };
+        });
+
+        const merged = [...mapped];
+        for (const local of this.booksData) {
+          if (!merged.find(m => m.id === local.id)) {
+            merged.push(local);
+          }
+        }
+        this.booksSignal.set(merged);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }
 
   readonly publishedBooks = computed(() =>
     this.booksSignal().filter(b => b.publicationStatus === 'published')

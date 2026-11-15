@@ -38,6 +38,11 @@ export const routes: Routes = [
     title: 'Sign Up | e-MaziShaala'
   },
   {
+    path: 'auth/callback',
+    loadComponent: () => import('./features/auth/callback/auth-callback.component').then(m => m.AuthCallbackComponent),
+    title: 'Authenticating... | e-MaziShaala'
+  },
+  {
     path: 'my-courses',
     canActivate: [authGuard],
     loadComponent: () => import('./features/my-courses/my-courses.component').then(m => m.MyCoursesComponent),

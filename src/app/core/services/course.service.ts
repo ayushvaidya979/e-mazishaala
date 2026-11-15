@@ -1,5 +1,6 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Course } from '../../models/course.model';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
@@ -403,6 +404,9 @@ export class CourseService {
     }
   ];
 
+  private supabaseService = inject(SupabaseService);
+  private readonly supabase = this.supabaseService.supabase;
+
   // State signals
   private coursesSignal = signal<Course[]>(this.coursesData);
   private selectedStandardSignal = signal<number | null>(null);
@@ -411,6 +415,67 @@ export class CourseService {
   readonly courses = this.coursesSignal.asReadonly();
   readonly selectedStandard = this.selectedStandardSignal.asReadonly();
   readonly searchQuery = this.searchQuerySignal.asReadonly();
+
+  constructor() {
+    this.loadCoursesFromSupabase();
+  }
+
+  private async loadCoursesFromSupabase() {
+    try {
+      const { data: dbCourses, error } = await this.supabase
+        .from('courses')
+        .select('*');
+
+      if (!error && dbCourses && dbCourses.length > 0) {
+        const mapped: Course[] = dbCourses.map(db => {
+          const existing = this.coursesData.find(c => c.id === db.id);
+          return {
+            id: db.id,
+            title: db.title,
+            subtitle: db.subtitle || existing?.subtitle || '',
+            description: db.description || existing?.description || '',
+            standard: db.standard,
+            subject: db.subject,
+            thumbnail: db.thumbnail || existing?.thumbnail || '',
+            instructor: {
+              id: 'inst-' + db.id,
+              name: db.instructor_name,
+              title: db.instructor_title || existing?.instructor.title || '',
+              avatar: db.instructor_avatar || existing?.instructor.avatar || '',
+              rating: Number(db.instructor_rating) || 4.9,
+              studentsCount: db.instructor_students_count || 10000,
+              experienceYears: db.instructor_experience_years || 10,
+              bio: db.instructor_bio || existing?.instructor.bio || ''
+            },
+            startDate: db.start_date || existing?.startDate || '',
+            price: Number(db.price) || 0,
+            discountedPrice: Number(db.discounted_price) || 0,
+            rating: Number(db.rating) || 4.9,
+            reviewCount: db.review_count || 100,
+            lessonsCount: db.lessons_count || 50,
+            duration: db.duration || '80 Hours',
+            language: db.language || 'Marathi & English',
+            isPopular: db.is_popular,
+            isUpcoming: db.is_upcoming,
+            isEnrolled: existing?.isEnrolled || false,
+            progressPercent: existing?.progressPercent || 0,
+            features: (db.features as string[]) || existing?.features || [],
+            curriculum: existing?.curriculum || []
+          };
+        });
+
+        const merged = [...mapped];
+        for (const local of this.coursesData) {
+          if (!merged.find(m => m.id === local.id)) {
+            merged.push(local);
+          }
+        }
+        this.coursesSignal.set(merged);
+      }
+    } catch {
+      // Offline fallback to coursesData
+    }
+  }
 
   // Filtered courses
   readonly filteredCourses = computed(() => {
@@ -458,7 +523,7 @@ export class CourseService {
     return this.coursesSignal().find(c => c.id === id);
   }
 
-  enrollInCourse(courseId: string) {
+  async enrollInCourse(courseId: string) {
     this.coursesSignal.update(courses =>
       courses.map(c => {
         if (c.id === courseId) {
@@ -467,6 +532,22 @@ export class CourseService {
         return c;
       })
     );
+
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession();
+      if (session?.user?.id) {
+        await this.supabase
+          .from('enrollments')
+          .upsert({
+            user_id: session.user.id,
+            course_id: courseId,
+            progress_percent: 0,
+            completed_lessons: 0
+          }, { onConflict: 'user_id,course_id' });
+      }
+    } catch (e) {
+      console.warn('Could not save enrollment to Supabase:', e);
+    }
   }
 }
 

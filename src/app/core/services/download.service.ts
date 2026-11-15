@@ -1,12 +1,15 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { DownloadItem, DownloadCategory } from '../../models/download.model';
 import { ToastService } from './toast.service';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DownloadService {
-  constructor(private toastService: ToastService) {}
+  private toastService = inject(ToastService);
+  private supabaseService = inject(SupabaseService);
+  private readonly supabase = this.supabaseService.supabase;
 
   private readonly downloadsData: DownloadItem[] = [
     {
@@ -108,6 +111,47 @@ export class DownloadService {
   readonly items = this.itemsSignal.asReadonly();
   readonly selectedCategory = this.selectedCategorySignal.asReadonly();
 
+  constructor() {
+    this.loadMaterialsFromSupabase();
+  }
+
+  private async loadMaterialsFromSupabase() {
+    try {
+      const { data: dbMaterials, error } = await this.supabase
+        .from('study_materials')
+        .select('*');
+
+      if (!error && dbMaterials && dbMaterials.length > 0) {
+        const mapped: DownloadItem[] = dbMaterials.map(db => {
+          const existing = this.downloadsData.find(d => d.id === db.id);
+          return {
+            id: db.id,
+            fileName: db.file_name,
+            subject: db.subject,
+            standard: db.standard,
+            category: db.category as DownloadCategory,
+            fileType: db.file_type as 'PDF' | 'DOCX' | 'ZIP',
+            fileSize: db.file_size || '2.5 MB',
+            downloadsCount: db.downloads_count || 100,
+            uploadedDate: new Date(db.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+            isDownloaded: existing?.isDownloaded || false,
+            downloadUrl: db.download_url
+          };
+        });
+
+        const merged = [...mapped];
+        for (const local of this.downloadsData) {
+          if (!merged.find(m => m.id === local.id)) {
+            merged.push(local);
+          }
+        }
+        this.itemsSignal.set(merged);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }
+
   readonly filteredItems = computed(() => {
     const cat = this.selectedCategorySignal();
     if (cat === 'all') return this.itemsSignal();
@@ -151,6 +195,19 @@ export class DownloadService {
           )
         );
         this.toastService.success(`Downloaded: ${item.fileName}`);
+
+        // Sync download record to Supabase if logged in
+        this.supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.id) {
+            this.supabase.from('user_downloads').upsert(
+              { user_id: session.user.id, material_id: id },
+              { onConflict: 'user_id,material_id' }
+            ).then(
+              () => {},
+              (err: any) => console.warn('Could not sync download to Supabase:', err)
+            );
+          }
+        });
       } else {
         this.itemsSignal.update(items =>
           items.map(i => (i.id === id ? { ...i, downloadProgress: progress } : i))
@@ -164,6 +221,20 @@ export class DownloadService {
       items.map(i => (i.id === id ? { ...i, isDownloaded: false } : i))
     );
     this.toastService.info('Download removed from local storage');
+
+    this.supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        this.supabase
+          .from('user_downloads')
+          .delete()
+          .eq('user_id', session.user.id)
+          .eq('material_id', id)
+          .then(
+            () => {},
+            (err: any) => console.warn('Could not remove download in Supabase:', err)
+          );
+      }
+    });
   }
 }
 

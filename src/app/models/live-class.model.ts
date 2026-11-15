@@ -14,6 +14,7 @@ export interface LiveClass {
   attendeesCount: number;
   hasRecording: boolean;
   recordingDuration?: string;
+  recordingUrl?: string;
   isReminderSet?: boolean;
   meetingLink?: string;
 }

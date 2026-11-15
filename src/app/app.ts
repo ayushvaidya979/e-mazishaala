@@ -46,7 +46,8 @@ export class App {
       url === '/' ||
       url.startsWith('/welcome') ||
       url.startsWith('/login') ||
-      url.startsWith('/signup')
+      url.startsWith('/signup') ||
+      url.startsWith('/auth')
     );
   });
 

@@ -45,7 +45,7 @@ import { IconComponent } from '../icon/icon.component';
             }
           </a>
 
-          <!-- Profile: Only Photo in Circle (No Text) -->
+          <!-- Profile: Only Photo in Circle (No Text, No Badges) -->
           <a
             routerLink="/profile"
             class="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-sky-100 ring-2 ring-sky-500/40 hover:ring-sky-500 shadow-2xs hover:scale-105 active:scale-95 transition-all flex items-center justify-center flex-shrink-0 cursor-pointer"
@@ -60,8 +60,6 @@ import { IconComponent } from '../icon/icon.component';
                 <app-icon name="user" [size]="20" color="#ffffff"></app-icon>
               </div>
             }
-            <!-- Online Status Indicator -->
-            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
           </a>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { StandardService } from '../../../core/services/standard.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { SupabaseService } from '../../../core/services/supabase.service';
 import { StandardDetail, SubjectSyllabus, StandardRecordedLecture, StandardLiveLecture, StandardNote, StandardTest, QuizQuestion } from '../../../models/standard.model';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { StandardDoodleComponent } from '../../../shared/components/standard-doodle/standard-doodle.component';
@@ -783,6 +784,7 @@ export class StandardDetailComponent {
   private router = inject(Router);
   private standardService = inject(StandardService);
   private toastService = inject(ToastService);
+  private supabaseService = inject(SupabaseService);
 
   readonly stdNumber = signal<number>(1);
   readonly activeSection = signal<'syllabus' | 'recorded' | 'live' | 'notes' | 'tests'>('syllabus');
@@ -874,6 +876,29 @@ export class StandardDetailComponent {
   submitTest() {
     this.isTestSubmitted.set(true);
     this.toastService.success('Test Submitted Successfully!');
+
+    const test = this.activeTest();
+    if (!test) return;
+
+    this.supabaseService.supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        const score = this.testScore();
+        const total = test.questions.length;
+        this.supabaseService.supabase.from('test_attempts').insert({
+          user_id: session.user.id,
+          test_id: test.id,
+          score: score,
+          total_marks: test.maxMarks,
+          correct_answers: score,
+          wrong_answers: total - score,
+          user_answers: this.userAnswers()
+        }).then(({ error }) => {
+          if (error) {
+            console.warn('Could not record test attempt in Supabase:', error.message);
+          }
+        });
+      }
+    });
   }
 
   readonly testScore = computed(() => {

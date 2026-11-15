@@ -1,12 +1,15 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { LiveClass } from '../../models/live-class.model';
 import { ToastService } from './toast.service';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class LiveClassService {
-  constructor(private toastService: ToastService) {}
+  private toastService = inject(ToastService);
+  private supabaseService = inject(SupabaseService);
+  private readonly supabase = this.supabaseService.supabase;
 
   private readonly classesData: LiveClass[] = [
     {
@@ -146,11 +149,60 @@ export class LiveClassService {
     this.classesSignal().filter(c => c.status === 'completed')
   );
 
-  toggleReminder(classId: string) {
+  constructor() {
+    this.loadClassesFromSupabase();
+  }
+
+  private async loadClassesFromSupabase() {
+    try {
+      const { data: dbClasses, error } = await this.supabase
+        .from('live_classes')
+        .select('*');
+
+      if (!error && dbClasses && dbClasses.length > 0) {
+        const mapped: LiveClass[] = dbClasses.map(db => {
+          const existing = this.classesData.find(c => c.id === db.id);
+          return {
+            id: db.id,
+            title: db.title,
+            subject: db.subject,
+            standard: db.standard,
+            teacherName: db.teacher_name,
+            teacherTitle: db.teacher_title || existing?.teacherTitle || 'Educator',
+            teacherAvatar: db.teacher_avatar || existing?.teacherAvatar || '',
+            status: db.status as 'live' | 'upcoming' | 'completed',
+            scheduledDate: db.scheduled_date,
+            scheduledTime: db.scheduled_time,
+            duration: db.duration || '60 mins',
+            thumbnail: db.thumbnail || existing?.thumbnail || '',
+            attendeesCount: db.attendees_count,
+            hasRecording: db.has_recording,
+            recordingDuration: db.recording_duration || existing?.recordingDuration,
+            recordingUrl: db.recording_url || existing?.recordingUrl,
+            meetingLink: db.meeting_link || 'https://meet.google.com',
+            isReminderSet: existing?.isReminderSet || false
+          };
+        });
+
+        const merged = [...mapped];
+        for (const local of this.classesData) {
+          if (!merged.find(m => m.id === local.id)) {
+            merged.push(local);
+          }
+        }
+        this.classesSignal.set(merged);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }
+
+  async toggleReminder(classId: string) {
+    let nextState = false;
     this.classesSignal.update(classes =>
       classes.map(c => {
         if (c.id === classId) {
-          const nextState = !c.isReminderSet;
+          nextState = !c.isReminderSet;
           if (nextState) {
             this.toastService.success(`Reminder set for: ${c.title}`, 'bell');
           } else {
@@ -161,6 +213,25 @@ export class LiveClassService {
         return c;
       })
     );
+
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession();
+      if (session?.user?.id) {
+        if (nextState) {
+          await this.supabase
+            .from('live_class_reminders')
+            .upsert({ user_id: session.user.id, live_class_id: classId }, { onConflict: 'user_id,live_class_id' });
+        } else {
+          await this.supabase
+            .from('live_class_reminders')
+            .delete()
+            .eq('user_id', session.user.id)
+            .eq('live_class_id', classId);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not sync reminder with Supabase:', e);
+    }
   }
 }
 
