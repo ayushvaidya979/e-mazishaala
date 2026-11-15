@@ -1,0 +1,215 @@
+/* ========================================================
+   e-MaziShaala (ई-माझीशाळा) - Mobile-First Global Styles
+   ======================================================== */
+
+:root {
+  /* Brand Theme Colors */
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --primary-light: #e0f2fe;
+  --primary-subtle: #f0f9ff;
+  --royal: #1e40af;
+  --royal-dark: #172554;
+  --royal-light: #dbeafe;
+
+  --white: #ffffff;
+
+  --accent: #facc15;
+  --accent-soft: #fef08a;
+  --accent-dark: #b45309;
+  --accent-warm: #f59e0b;
+
+  --bg-app: #f4f8fc;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f8fafc;
+  --border-subtle: #e2e8f0;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+
+  --live-red: #ef4444;
+
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-marathi: 'Yantramanav', 'Plus Jakarta Sans', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  min-height: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  overflow-x: hidden;
+  /* Native mobile bottom navigation padding with iOS safe area so bottom bar never obscures content */
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 12px));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+  user-select: none;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}
+
+/* Hide scrollbars for clean horizontal native app scrolling */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile-tuned App Container: max-w-lg centers on large screens like a native mobile app container, or expands smoothly */
+.mobile-app-shell {
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.04);
+}
+
+@media (min-width: 1024px) {
+  .mobile-app-shell {
+    max-width: 768px;
+    border-left: 1px solid rgba(226, 232, 240, 0.8);
+    border-right: 1px solid rgba(226, 232, 240, 0.8);
+  }
+}
+
+.mobile-container {
+  width: 100%;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+/* Smooth Horizontal Snap Carousel */
+.snap-scroll-x {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  gap: 12px;
+  padding-bottom: 6px;
+  padding-top: 2px;
+}
+
+.snap-scroll-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Live Pulse Animation */
+@keyframes pulse-live {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background-color: var(--live-red);
+  border-radius: 50%;
+  animation: pulse-live 1.8s infinite;
+}
+
+/* Native Mobile Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--royal) 100%);
+  color: var(--white);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.22);
+  transition: all 0.15s ease;
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.25);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background-color: var(--white);
+  color: var(--primary);
+  border: 1.5px solid var(--primary-light);
+  padding: 7px 14px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:active {
+  transform: scale(0.97);
+  background-color: var(--primary-subtle);
+}
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-warm) 100%);
+  color: #451a03;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-accent:active {
+  transform: scale(0.97);
+}
+
+.brand-marathi {
+  font-family: var(--font-marathi);
+  font-weight: 700;
+}

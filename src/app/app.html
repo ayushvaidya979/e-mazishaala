@@ -1,0 +1,19 @@
+<div class="mobile-app-shell flex flex-col">
+  <!-- Top Mobile Header (Only shown when logged in and inside the app) -->
+  @if (showNavigation()) {
+    <app-header></app-header>
+  }
+
+  <!-- Active Page Routing View -->
+  <main class="flex-1">
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Large Mobile Fixed Bottom Navigation (Only shown when logged in) -->
+  @if (showNavigation()) {
+    <app-bottom-nav></app-bottom-nav>
+  }
+
+  <!-- Global Toast Alerts -->
+  <app-toast-container></app-toast-container>
+</div>
